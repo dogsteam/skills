@@ -67,13 +67,15 @@ description: >-
 
 ### BƯỚC 5: XÁC THỰC NGUỒN GỐC HÌNH ẢNH (VISUAL AUDIT INTEGRITY)
 * **Quy tắc bất biến:**
-  1. **Mobile App (`XeChung`, `AnNhanh`, `ShipTuDo`...):**
-     - Bắt buộc kiểm tra `xcrun simctl list devices | grep -i booted`.
-     - Chụp trực tiếp từ Simulator: `xcrun simctl io booted screenshot <path>`.
-  2. **Web App:**
+  1. **Tác vụ phi-giao-diện (Non-UI Tasks):**
+     - Các tác vụ như build AAB/APK, upload Google Play Console / App Store, nạp CSDL, sửa gitignore, deploy VPS: **TUYỆT ĐỐI KHÔNG CHỤP ẢNH GIAO DIỆN VÔ DUYÊN**.
+  2. **Mobile App (`XeChung`, `AnNhanh`, `ShipTuDo`...):**
+     - Phải kiểm tra app mục tiêu có đang thực sự chạy trên màn hình máy ảo không (`xcrun simctl spawn booted launchctl list`).
+     - **TUYỆT ĐỐI CẤM chụp màn hình chính (Home Screen / SpringBoard có lịch, bản đồ, widget) của Apple khi app chưa mở!**
+  3. **Web App:**
      - Kiểm tra tiến trình đang chiếm cổng: `lsof -i :<port>`.
      - Phải chắc chắn tiến trình đó thuộc dự án đang làm.
-  3. **Vùng cấm tuyệt đối:**
+  4. **Vùng cấm tuyệt đối:**
      - CẤM chụp cổng `8080` của phần mềm bệnh viện hoặc ứng dụng khác đang chạy trên máy Mac.
      - CẤM dùng ảnh lưu sẵn, ảnh mockup dựng sẵn.
      - Nếu app chưa mở hoặc dev server chưa bật: Báo cáo trung thực *"Chưa mở màn hình app để chụp"*.
