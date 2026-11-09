@@ -12,7 +12,8 @@ skills/
 ├── README.md                                                 ★ Hướng dẫn tổng thể
 │
 ├── rules/
-│   └── ANTI_HALLUCINATION_AND_TRUTHFUL_VERIFICATION_RULE.md  ★ Quy tắc cấm báo cáo láo & đối soát bằng chứng
+│   ├── ANTI_HALLUCINATION_AND_TRUTHFUL_VERIFICATION_RULE.md  ★ Quy tắc cấm báo cáo láo & đối soát bằng chứng
+│   └── FACEBOOK_LIKE_ARCHITECTURE_RULE.md (facebook-like.md) ★ Quy tắc kiến trúc 2 tầng Native Shell & Dynamic OTA
 │
 ├── anti-hallucination-audit/ (anti-hallucination-audit-xskill)★ SKILL 1: Thẩm định sự thật & chống báo cáo láo
 │   ├── SKILL.md
@@ -33,6 +34,9 @@ skills/
 │       ├── google-play-closed-testing.md                     Vượt ải 20 tester 14 ngày & khảo sát mở Production
 │       ├── google-play-rejection-checklist.md                Checklist 10 lỗi bị từ chối phổ biến trên Play Console
 │       └── apple-appstore-connect.md                         Fast-track nộp IPA trực tiếp lên App Store Connect
+│
+├── facebook-like-xskill/ (facebook-like)                     ★ SKILL 4: Chuyển đổi Kiến trúc Facebook-like (SDUI & OTA)
+│   └── SKILL.md                                              Native Shell 120 FPS Reanimated, Instant Dynamic OTA, giấu 100% thuật toán
 │
 └── build-deploy-xskill/                                      ★ MASTER SKILL: Đệ chuyên trách Build & Deploy đa nền tảng
     └── SKILL.md                                              Điều hành tổng lực EXE, APK, AAB, IPA, VPS, Stores, Simulator
