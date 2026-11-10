@@ -38,8 +38,20 @@ skills/
 ├── facebook-like-xskill/ (facebook-like)                     ★ SKILL 4: Chuyển đổi Kiến trúc Facebook-like (SDUI & OTA)
 │   └── SKILL.md                                              Native Shell 120 FPS Reanimated, Instant Dynamic OTA, giấu 100% thuật toán
 │
-└── build-deploy-xskill/                                      ★ MASTER SKILL: Đệ chuyên trách Build & Deploy đa nền tảng
-    └── SKILL.md                                              Điều hành tổng lực EXE, APK, AAB, IPA, VPS, Stores, Simulator
+├── build-deploy-xskill/                                      ★ MASTER SKILL: Đệ chuyên trách Build & Deploy đa nền tảng
+│   └── SKILL.md                                              Điều hành tổng lực EXE, APK, AAB, IPA, VPS, Stores, Simulator
+│
+├── evals-benchmark-xskill/                                   ★ SKILL 5: Đánh giá tự động E2E Evals & Benchmark
+│   └── SKILL.md                                              Giả lập hành vi người dùng cuối kiểm thử tự động toàn diện >= 98% pass
+│
+├── executive-secretary-xskill/                               ★ SKILL 6: Thư ký trưởng tác chiến & đôn đốc 10 phút
+│   └── SKILL.md                                              Quét lịch sử Telegram topic, đôn đốc luồng trễ, tư vấn chiến lược cho CTO
+│
+├── pitfall-memory-xskill/                                    ★ SKILL 7: Bảo tàng cạm bẫy & tích lũy tri thức sống
+│   └── SKILL.md                                              Ghi nhớ lỗi lầm kỹ thuật và bài học thực chiến ngăn chặn tái phạm
+│
+└── self-healing-loop-xskill/                                 ★ SKILL 8: Vòng lặp tự chẩn đoán & tự chữa lành khép kín
+    └── SKILL.md                                              Tự vá lỗi build (Gradle, Xcode, SEA, syntax) và chạy lại đến khi thành công
 ```
 
 ---
