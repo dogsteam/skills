@@ -9,7 +9,7 @@
 > ⚠️ **Cảnh báo Apple Review:** Chỉ khai báo quyền nếu App có dùng thật hoặc có flow giao diện giải thích rõ ràng khi review; **TUYỆT ĐỐI KHÔNG** để mô tả placeholder tiếng Anh như `"Allow $(PRODUCT_NAME) to access your location"` — mọi chuỗi `*UsageDescription` phải viết bằng tiếng Việt chuẩn mực, nêu rõ lý do tính năng cụ thể.
 
 Kiểm tra danh sách quyền & module nền cần có sẵn trong Native Shell:
-- [ ] **OTA Runtime:** `expo-updates` đã cài đặt; `EXUpdatesEnabled = true` ([Expo.plist](../../ios/Supporting/Expo.plist)), `expo.modules.updates.ENABLED = "true"` ([AndroidManifest.xml](../../android/app/src/main/AndroidManifest.xml)), `runtimeVersion` thống nhất, nhúng sẵn Public Code Signing Certificate.
+- [ ] **OTA Runtime:** `expo-updates` đã cài đặt; `EXUpdatesEnabled = true` (`ios/<AppName>/Supporting/Expo.plist`), `expo.modules.updates.ENABLED = "true"` (`android/app/src/main/AndroidManifest.xml`), `runtimeVersion` cố định (VD `"native-1"` — đồng bộ giữa `app.config.*`, `Expo.plist` `EXUpdatesRuntimeVersion`, và `AndroidManifest.xml` / `strings.xml`), nhúng sẵn X.509 Public Code Signing Certificate (`-----BEGIN CERTIFICATE-----`).
 - [ ] **Cử chỉ & UI 120 FPS:** `react-native-reanimated`, `react-native-gesture-handler`, `react-native-safe-area-context`, `react-native-screens`, `react-native-svg`, `react-native-webview`.
 - [ ] **Định vị & Bản đồ:** `expo-location` (`NSLocationWhenInUseUsageDescription` rõ ràng). Nếu app không cần theo dõi nền khi tắt màn hình, **tránh xin** `Background Location` (vì Google Play bắt nộp video thuyết minh cực gắt).
 - [ ] **Giọng nói & Âm thanh:** `expo-speech`, `expo-speech-recognition`, `expo-audio`, `UIBackgroundModes: ["remote-notification", "audio"]`.

@@ -30,9 +30,14 @@ updates: {
 runtimeVersion: 'native-1',
 ```
 
-- **Quy tắc bảo mật Private Key:**
+- **Quy tắc bảo mật & định dạng Key RSA-2048 X.509:**
+  - `expo-updates` trên iOS/Android **BẮT BUỘC** nhúng **X.509 Certificate (`-----BEGIN CERTIFICATE-----`)** có extension `keyUsage = critical, digitalSignature` và `extendedKeyUsage = critical, codeSigning` (KHÔNG được dùng `PUBLIC KEY` PEM thô vì parser native sẽ từ chối). Tạo chuẩn 1 lệnh bằng:
+    ```bash
+    node <skill_dir>/scripts/publish-ota.mjs --keygen --cert-out ./credentials/ota-cert.pem --key-out ~/.secrets/ota-private.pem
+    ```
+    *(Hoặc dùng `npx expo-updates codesigning:generate`).*
   - `ota-cert.pem` (Public Certificate) đóng gói vào trong `.ipa`/`.aab`.
-  - `ota-private.pem` (Private Key RSA-2048) **TUYỆT ĐỐI KHÔNG** commit lên Git công khai và **KHÔNG** lưu thường trực trên VPS production. Chỉ ký trên máy build / CI lúc chạy lệnh phát hành (`publish-ota.mjs`).
+  - `ota-private.pem` (Private Key RSA-2048) **TUYỆT ĐỐI KHÔNG** commit lên Git công khai và **KHÔNG** lưu thường trực trên VPS production. Chỉ ký trên máy build / CI lúc chạy lệnh phát hành (`scripts/publish-ota.mjs --publish`).
   - Lợi ích: Ngay cả khi server hoặc CDN bị chiếm quyền hoặc DNS bị tấn công, app client sẽ **từ chối nạp bundle không khớp chữ ký**.
 
 ---
@@ -45,15 +50,17 @@ runtimeVersion: 'native-1',
   - `expo-runtime-version`: ví dụ `native-1`
   - `expo-current-update-id`: UUID bản hiện tại đang chạy trên máy khách
   - `expo-channel-name` *(tùy chọn)*: `production` | `staging`
-- **Response Status:**
-  - Nếu client đã ở bản mới nhất hoặc không có bản khớp `runtimeVersion` + `platform`: trả về `204 No Content` (hoặc rollback directive nếu bản hiện tại bị đánh dấu lỗi).
-  - Nếu có bản mới: trả JSON **Manifest Expo Updates v1** (`id`, `createdAt`, `runtimeVersion`, `launchAsset: { hash, key, contentType, fileExtension, url }`, `assets: [...]`, `metadata: {}`, `extra: {}`).
+  - `accept`: thường gồm `multipart/mixed, application/expo+json, application/json`
+- **Response Status & Protocol:**
+  - Nếu client đã ở bản mới nhất hoặc không có bản khớp `runtimeVersion` + `platform`: trả về `204 No Content`.
+  - Nếu trả **Manifest** bản mới: hỗ trợ cả `application/json` và `multipart/mixed` (với part `name="manifest"`). Body chứa `{ id, createdAt, runtimeVersion, launchAsset, assets, metadata, extra }`.
+  - Nếu trả **Directive `rollBackToEmbedded`** (khi bản mới nhất bị Admin đánh dấu Rollback mà chưa có bản trước): Theo chuẩn Expo Updates v1, bắt buộc trả qua **`multipart/mixed`** với part `name="directive"`, kèm header chữ ký `expo-signature` (được ký sẵn lúc build bởi `publish-ota.mjs` nên VPS **vẫn không cần giữ Private Key**!).
 - **Response Headers bắt buộc:**
   - `expo-protocol-version: 1`
   - `expo-sfv-version: 0`
-  - `content-type: application/json` (hoặc `multipart/mixed` nếu dùng envelope)
+  - `content-type: application/json` (hoặc `multipart/mixed; boundary=...` trên response root / `application/json; charset=utf-8` trên từng part)
   - `cache-control: private, max-age=0, no-store`
-  - `expo-signature: sig=":<BASE64_RSA_SHA256_SIGNATURE>:", keyid="main", alg="rsa-v1_5-sha256"` *(Chữ ký được ký từ **raw serialized JSON body của manifest**, dùng RSA-SHA256 chuẩn `expo-code-signing-intermediates` / `node:crypto`!)*.
+  - `expo-signature: sig=":<BASE64_RSA_SHA256_SIGNATURE>:", keyid="main", alg="rsa-v1_5-sha256"` *(Lưu ý dấu `:` bao quanh base64 theo chuẩn Expo SFV Byte Sequence; chữ ký ký từ **raw serialized JSON string** bằng SHA-256 RSA).*
 
 ### `GET /api/v1/ota/assets/:hash`
 - Phục vụ file `.hbc` (Hermes bytecode) và static assets tương ứng theo SHA-256 hash.

@@ -25,6 +25,21 @@ if (args.includes('--hook-stdin')) {
   runProjectAudit(targetDir, { checkDiff, strict });
 }
 
+function isServerSubpackage(relOrAbsPath) {
+  const normalized = String(relOrAbsPath || '').replace(/\\/g, '/');
+  return /(^|\/)(backend|server|admin|web|scripts|worker)\/package\.json$/i.test(normalized);
+}
+
+function isNativeProtectedPath(filePath) {
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  if (!normalized || isServerSubpackage(normalized)) return false;
+  return (
+    /(^|\/)(ios|android|plugins|patches)(\/|$)/i.test(normalized) ||
+    /(^|\/)(Info\.plist|AndroidManifest\.xml|Expo\.plist|Podfile|Podfile\.lock|eas\.json)$/i.test(normalized) ||
+    /(^|\/)(app\.config\.(js|ts|json)|app\.json|package\.json)$/i.test(normalized)
+  );
+}
+
 function runPreToolUseHook() {
   let raw = '';
   try {
@@ -42,17 +57,15 @@ function runPreToolUseHook() {
     return;
   }
 
-  const toolName = String(payload?.toolCall?.name || '').toLowerCase();
-  const toolArgs = payload?.toolCall?.args || {};
+  const toolName = String(payload?.toolCall?.name || payload?.tool_name || '').toLowerCase();
+  const toolArgs = payload?.toolCall?.args || payload?.tool_input || {};
 
-  const nativePathPattern = /(^|\/)(ios|android|plugins)(\/|$)|Info\.plist$|AndroidManifest\.xml$|Expo\.plist$|app\.config\.(js|ts|json)$|app\.json$|(^|\/)package\.json$/i;
-
-  if (toolName === 'write_file' || toolName === 'edit_file') {
-    const filePath = String(toolArgs.Path || toolArgs.path || '');
-    if (nativePathPattern.test(filePath)) {
+  if (toolName === 'write_file' || toolName === 'edit_file' || toolName === 'write' || toolName === 'edit') {
+    const filePath = String(toolArgs.Path || toolArgs.path || toolArgs.file_path || toolArgs.TargetFile || '');
+    if (isNativeProtectedPath(filePath)) {
       process.stdout.write(
         JSON.stringify({
-          decision: 'ask',
+          decision: 'force_ask',
           reason: `🛑 NATIVE SHELL FREEZE GUARD: File "${path.basename(filePath)}" thuộc vùng Native Shell / Config. Sửa đổi có thể buộc build lại IPA/AAB nộp Store. Xác nhận nếu bạn chấp nhận thay đổi Native ABI!`,
         })
       );
@@ -60,13 +73,22 @@ function runPreToolUseHook() {
     }
   }
 
-  if (toolName === 'run_command') {
-    const cmd = String(toolArgs.CommandLine || toolArgs.commandLine || '');
-    if (/\b(npm\s+(install|i)|npx\s+expo\s+install|yarn\s+add|pnpm\s+add|pod\s+install|expo\s+prebuild)\b/i.test(cmd)) {
+  if (toolName === 'run_command' || toolName === 'bash') {
+    const cmd = String(toolArgs.CommandLine || toolArgs.commandLine || toolArgs.command || '');
+    const isPackageMutate =
+      /\b(npm\s+(install|i|uninstall|rm)|npx\s+expo\s+(install|prebuild)|yarn\s+(add|remove)|pnpm\s+(add|remove)|bun\s+(add|install|remove)|pod\s+(install|update|repo)|patch-package)\b/i.test(
+        cmd
+      );
+    const isShellMutateNative =
+      /(>|>>|\b(tee|rm|mv|cp|sed\s+-i|perl\s+-pi)\b)[^\n]*(ios\/|android\/|Info\.plist|AndroidManifest\.xml|Expo\.plist|app\.config\.|package\.json)/i.test(
+        cmd
+      );
+
+    if (isPackageMutate || isShellMutateNative) {
       process.stdout.write(
         JSON.stringify({
-          decision: 'ask',
-          reason: `🛑 NATIVE SHELL FREEZE GUARD: Lệnh "${cmd.slice(0, 80)}" có thể thay đổi dependency Native và phá vỡ tính năng chỉ-update-server (OTA). Hãy xác nhận nếu package là pure-JS hoặc chấp nhận nộp lại Store!`,
+          decision: 'force_ask',
+          reason: `🛑 NATIVE SHELL FREEZE GUARD: Lệnh "${cmd.slice(0, 90)}" có thể thay đổi dependency hoặc file vùng Native, phá vỡ khả năng chỉ-update-server (OTA). Hãy xác nhận nếu package là pure-JS / thuộc backend hoặc chấp nhận nộp lại Store!`,
         })
       );
       return;
@@ -80,7 +102,13 @@ function walkFiles(dir, extensions) {
   const results = [];
   if (!fs.existsSync(dir)) return results;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') {
+    if (
+      entry.name === 'node_modules' ||
+      entry.name === '.git' ||
+      entry.name === 'dist' ||
+      entry.name === 'build' ||
+      entry.name === 'Pods'
+    ) {
       continue;
     }
     const fullPath = path.join(dir, entry.name);
@@ -99,6 +127,23 @@ function readSafe(filePath) {
   } catch {
     return '';
   }
+}
+
+function extractGitChangedPaths(targetDir) {
+  const gitOut = execSync('git status --porcelain -- .', { cwd: targetDir, encoding: 'utf8' });
+  const files = [];
+  for (const line of gitOut.split('\n')) {
+    if (!line.trim()) continue;
+    let body = line.slice(3).trim();
+    if (body.includes(' -> ')) {
+      body = body.split(' -> ').pop().trim();
+    }
+    if (body.startsWith('"') && body.endsWith('"')) {
+      body = body.slice(1, -1);
+    }
+    files.push(body.replace(/\\/g, '/'));
+  }
+  return files;
 }
 
 function runProjectAudit(targetDir, { checkDiff, strict }) {
@@ -121,14 +166,8 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
   // 1. NATIVE SHELL DIFF AUDIT
   if (checkDiff) {
     try {
-      const gitOut = execSync('git status --porcelain', { cwd: targetDir, encoding: 'utf8' });
-      const changedFiles = gitOut
-        .split('\n')
-        .map((line) => line.slice(3).trim())
-        .filter(Boolean);
-      const nativeTouched = changedFiles.filter((f) =>
-        /^(ios|android|plugins)\//i.test(f) || /^(app\.config\.|app\.json$|package\.json$)/i.test(f)
-      );
+      const changedFiles = extractGitChangedPaths(targetDir);
+      const nativeTouched = changedFiles.filter((f) => isNativeProtectedPath(f));
       if (nativeTouched.length > 0) {
         logItem(
           'FAIL',
@@ -143,7 +182,7 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
     }
   }
 
-  // 2. OTA READINESS AUDIT
+  // 2. OTA READINESS & GOLDEN NATIVE SHELL AUDIT
   const pkgPath = path.join(targetDir, 'package.json');
   const appConfigPath = fs.existsSync(path.join(targetDir, 'app.config.js'))
     ? path.join(targetDir, 'app.config.js')
@@ -163,15 +202,44 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
 
   const appConfigText = readSafe(appConfigPath);
   if (appConfigText) {
-    const hasCustomUrl = /updates\s*:\s*\{[\s\S]*url\s*:/.test(appConfigText) || /"url"\s*:\s*"https?:\/\//.test(appConfigText);
-    const hasCodeSign = /codeSigningCertificate/.test(appConfigText);
+    const hasCustomUrl =
+      /updates\s*:\s*\{[\s\S]*url\s*:/.test(appConfigText) || /"url"\s*:\s*"https?:\/\//.test(appConfigText);
+    const certMatch =
+      appConfigText.match(/codeSigningCertificate\s*:\s*['"]([^'"]+)['"]/) ||
+      appConfigText.match(/"codeSigningCertificate"\s*:\s*"([^"]+)"/);
+
     if (hasCustomUrl) {
       logItem('PASS', `Đã cấu hình updates.url trong ${path.basename(appConfigPath)}.`);
     } else {
       logItem('FAIL', `Thiếu updates.url (self-hosted OTA endpoint) trong ${path.basename(appConfigPath)}.`);
     }
-    if (hasCodeSign) {
-      logItem('PASS', 'Đã bật codeSigningCertificate (RSA Code Signing cho OTA).');
+
+    if (/policy\s*:\s*['"]appVersion['"]|"policy"\s*:\s*"appVersion"/.test(appConfigText)) {
+      logItem(
+        'WARN',
+        `Đang dùng runtimeVersion: { policy: 'appVersion' } — dễ lệch OTA giữa iOS & Android; khuyến nghị dùng chuỗi cố định VD: "native-1".`
+      );
+    } else if (/runtimeVersion\s*:|"runtimeVersion"\s*:/.test(appConfigText)) {
+      logItem('PASS', `Đã cấu hình runtimeVersion cố định trong ${path.basename(appConfigPath)}.`);
+    } else {
+      logItem('WARN', `Chưa thấy runtimeVersion trong ${path.basename(appConfigPath)}.`);
+    }
+
+    if (certMatch) {
+      const certFullPath = path.resolve(targetDir, certMatch[1]);
+      if (!fs.existsSync(certFullPath)) {
+        logItem('FAIL', `Không tìm thấy file OTA Public Certificate tại: ${certMatch[1]}`);
+      } else {
+        const certPem = readSafe(certFullPath);
+        if (certPem.includes('BEGIN CERTIFICATE')) {
+          logItem('PASS', `OTA X.509 Public Certificate hợp lệ (${certMatch[1]}).`);
+        } else {
+          logItem(
+            'FAIL',
+            `File ${certMatch[1]} KHÔNG phải X.509 Certificate (-----BEGIN CERTIFICATE-----). Expo Updates native sẽ từ chối PUBLIC KEY thuần!`
+          );
+        }
+      }
     } else {
       logItem('WARN', 'Chưa bật updates.codeSigningCertificate — khuyến nghị ký số RSA-2048 cho bản OTA.');
     }
@@ -180,10 +248,26 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
   const expoPlistFiles = walkFiles(path.join(targetDir, 'ios'), ['.plist']).filter((p) => p.endsWith('Expo.plist'));
   for (const plist of expoPlistFiles) {
     const txt = readSafe(plist);
+    const relPlist = path.relative(targetDir, plist);
     if (/<key>EXUpdatesEnabled<\/key>\s*<true\s*\/>/i.test(txt)) {
-      logItem('PASS', `iOS ${path.relative(targetDir, plist)}: EXUpdatesEnabled = true.`);
+      logItem('PASS', `iOS ${relPlist}: EXUpdatesEnabled = true.`);
     } else {
-      logItem('FAIL', `iOS ${path.relative(targetDir, plist)}: EXUpdatesEnabled đang tắt (false) -> App iOS không tải được OTA!`);
+      logItem('FAIL', `iOS ${relPlist}: EXUpdatesEnabled đang tắt (false) -> App iOS không tải được OTA!`);
+    }
+    if (!/<key>EXUpdatesURL<\/key>/i.test(txt)) {
+      logItem('WARN', `iOS ${relPlist}: Thiếu EXUpdatesURL (cần đồng bộ từ app.config nếu dùng Bare Workflow).`);
+    }
+  }
+
+  const infoPlistFiles = walkFiles(path.join(targetDir, 'ios'), ['.plist']).filter((p) => p.endsWith('Info.plist'));
+  for (const plist of infoPlistFiles) {
+    const txt = readSafe(plist);
+    const relPlist = path.relative(targetDir, plist);
+    if (/Allow\s+\$\(PRODUCT_NAME\)\s+to\s+access/i.test(txt)) {
+      logItem(
+        'WARN',
+        `iOS ${relPlist}: Còn chuỗi placeholder "Allow $(PRODUCT_NAME) to access..." -> Cần viết tiếng Việt cụ thể trước khi nộp Apple Review!`
+      );
     }
   }
 
@@ -195,6 +279,9 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
     } else {
       logItem('FAIL', 'Android AndroidManifest.xml: expo.modules.updates.ENABLED đang là false -> App Android không tải được OTA!');
     }
+    if (!/expo\.modules\.updates\.EXPO_UPDATE_URL/i.test(txt)) {
+      logItem('WARN', 'Android AndroidManifest.xml: Thiếu EXPO_UPDATE_URL (cần đồng bộ nếu dùng Bare Workflow).');
+    }
   }
 
   // 3. ZERO-SECRET & CLIENT MATH AUDIT
@@ -204,6 +291,7 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
     dynamicEval: [],
     vendorCallsOrKeys: [],
     clientMath: [],
+    insecureStorage: [],
   };
 
   for (const file of srcFiles) {
@@ -216,18 +304,21 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
         return;
       }
       const ln = idx + 1;
-      if (/\b(eval|Function)\s*\(/.test(line)) {
+      if (/\b(eval|(?:new\s+)?Function)\s*\(/.test(line)) {
         findings.dynamicEval.push(`${rel}:${ln}`);
       }
       if (
-        /(sk-[a-zA-Z0-9]{20,}|AIza[0-9A-Za-z\-_]{30,}|rsapi\.goong\.io|maps\.googleapis\.com|api\.openai\.com|goongjs\.accessToken\s*=)/.test(
+        /(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{20,}|xoxb-[0-9A-Za-z-]+|AIza[0-9A-Za-z\-_]{30,}|rsapi\.goong\.io|maps\.googleapis\.com|api\.openai\.com|goongjs\.accessToken\s*=|BEGIN\s+(RSA\s+)?PRIVATE\s+KEY|Authorization:\s*['"`]Bearer\s+[A-Za-z0-9._-]{12,})/.test(
           line
         )
       ) {
         findings.vendorCallsOrKeys.push(`${rel}:${ln}`);
       }
-      if (/function\s+calculate(OrderSettlement|MatchScore|Fee|Commission|Pricing)\b/.test(line)) {
+      if (/function\s+calculate(OrderSettlement|MatchScore|Fee|Commission|Pricing|Fare)\b/.test(line)) {
         findings.clientMath.push(`${rel}:${ln}`);
+      }
+      if (/AsyncStorage\.(setItem|multiSet)\s*\([^)]*(accessToken|refreshToken|authToken|jwt)/i.test(line)) {
+        findings.insecureStorage.push(`${rel}:${ln}`);
       }
     });
   }
@@ -258,16 +349,38 @@ function runProjectAudit(targetDir, { checkDiff, strict }) {
     );
   }
 
-  // 4. PROJECT RULE LOCK CHECK
+  if (findings.insecureStorage.length === 0) {
+    logItem('PASS', 'Secure Session Storage: Không phát hiện lưu JWT/AccessToken thô qua AsyncStorage.');
+  } else {
+    logItem(
+      'WARN',
+      `Phát hiện lưu token phiên đăng nhập qua AsyncStorage (nên chuyển sang expo-secure-store):`,
+      findings.insecureStorage.join(', ')
+    );
+  }
+
+  // 4. PROJECT RULE & HOOK LOCK CHECK
   const hasRule =
     fs.existsSync(path.join(targetDir, '.agents', 'rules', 'facebook-like.md')) ||
     fs.existsSync(path.join(targetDir, '.agents', 'rules', 'FACEBOOK_LIKE_PROJECT_RULE.md')) ||
-    /FACEBOOK-LIKE|NATIVE SHELL FREEZE/i.test(readSafe(path.join(targetDir, 'AGENTS.md')));
+    /FACEBOOK-LIKE|NATIVE SHELL FREEZE/i.test(readSafe(path.join(targetDir, 'AGENTS.md'))) ||
+    /FACEBOOK-LIKE|NATIVE SHELL FREEZE/i.test(readSafe(path.join(targetDir, 'GEMINI.md')));
 
   if (hasRule) {
-    logItem('PASS', 'Project Rule Guard đã được cài trong AGENTS.md hoặc .agents/rules/.');
+    logItem('PASS', 'Project Rule Guard đã được cài trong AGENTS.md / GEMINI.md / .agents/rules/.');
   } else {
     logItem('WARN', 'Chưa cài FACEBOOK_LIKE_PROJECT_RULE.md vào AGENTS.md hoặc .agents/rules/ -> AI session sau dễ quên!');
+  }
+
+  const hooksFile = path.join(targetDir, '.agents', 'hooks.json');
+  if (fs.existsSync(hooksFile)) {
+    const hooksTxt = readSafe(hooksFile);
+    if (/node\s+\.agents\/scripts\//.test(hooksTxt)) {
+      logItem(
+        'WARN',
+        '.agents/hooks.json đang dùng đường dẫn tương đối ".agents/scripts/..." — Vì CWD của hook là chính thư mục .agents/, cần sửa thành "./scripts/audit-facebook-like.mjs"!'
+      );
+    }
   }
 
   console.log('\n==================================================================');

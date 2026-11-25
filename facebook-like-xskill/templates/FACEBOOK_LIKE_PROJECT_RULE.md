@@ -36,5 +36,5 @@ Sau khi bản **Golden Native Shell** đã phát hành trên Store, áp dụng k
 
 Trước khi kết luận xong một thay đổi thuộc Backend / OTA / SDUI:
 - Chạy `npm run typecheck` (và `typecheck` của backend nếu có).
-- Chạy kiểm chứng không vi phạm Native Shell & Zero-Secret (`node .agents/scripts/audit-facebook-like.mjs --check-diff` hoặc script audit của skill).
+- Chạy kiểm chứng không vi phạm Native Shell & Zero-Secret (`node .agents/scripts/audit-facebook-like.mjs --check-diff` hoặc script audit của skill; riêng trong `.agents/hooks.json` dùng `node ./scripts/audit-facebook-like.mjs --hook-stdin` vì CWD của hook là `.agents/`).
 - Xác nhận rõ trong báo cáo: thay đổi vừa rồi triển khai bằng **(Backend Only / SDUI / JS OTA)** và **KHÔNG cần nộp lại App Store / Google Play**.

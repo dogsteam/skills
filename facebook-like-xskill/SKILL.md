@@ -71,19 +71,19 @@ Cài ngay [templates/FACEBOOK_LIKE_PROJECT_RULE.md](./templates/FACEBOOK_LIKE_PR
 ## 🛠️ 3. QUY TRÌNH TRIỂN KHAI 5 GIAI ĐOẠN (CHUYỂN ĐỔI HOẶC DỰNG MỚI)
 
 1. **Sao lưu & Cài Policy cố định:**
-   Commit an toàn bằng Git (`git add -A && git commit -m "chore: snapshot before facebook-like architecture"`). Gắn [FACEBOOK_LIKE_PROJECT_RULE.md](./templates/FACEBOOK_LIKE_PROJECT_RULE.md) vào `AGENTS.md` / `.agents/rules/` (và tùy chọn [native-freeze-hook.json](./templates/native-freeze-hook.json) vào `.agents/hooks.json`).
-   *Điều kiện xong:* File rule nằm trong repo, `git status` sạch để sẵn sàng đối chiếu Native diff.
+   Commit an toàn bằng Git (`git add -A && git commit -m "chore: snapshot before facebook-like architecture"`). Nhúng [FACEBOOK_LIKE_PROJECT_RULE.md](./templates/FACEBOOK_LIKE_PROJECT_RULE.md) vào **`AGENTS.md`** ở thư mục gốc repo (nơi mọi agent harness tự động nạp) và/hoặc `.agents/rules/facebook-like.md`; nếu bật hook bảo vệ Native Shell thì copy `audit-facebook-like.mjs` vào `.agents/scripts/` và gắn [native-freeze-hook.json](./templates/native-freeze-hook.json) vào `.agents/hooks.json`.
+   *Điều kiện xong:* File rule nằm trong `AGENTS.md` hoặc `.agents/rules/`, `git status` sạch để sẵn sàng đối chiếu Native diff.
 2. **Dọn sạch Client Secret & Chuyển Nghiệp vụ lên Server:**
    Đọc [references/security-zero-secret-audit.md](./references/security-zero-secret-audit.md). Đưa toàn bộ tính toán giá, matching, map tiles proxy, masking về Backend.
    *Điều kiện xong:* Chạy `audit-facebook-like.mjs` phần Security báo **PASS** (0 secret/math leak ở `src/`).
 3. **Cấy Golden Native Shell & Self-Hosted Signed OTA:**
-   Đọc [references/golden-native-shell-checklist.md](./references/golden-native-shell-checklist.md) & [references/ota-protocol-and-signing.md](./references/ota-protocol-and-signing.md). Dự phòng sẵn quyền phần cứng 12–24 tháng, dọn placeholder `Info.plist`, cài `expo-updates` trỏ về `/api/v1/ota/manifest` kèm Public Certificate & unified `runtimeVersion`. Dựng backend OTA route từ [templates/ota-server-route.ts](./templates/ota-server-route.ts).
+   Đọc [references/golden-native-shell-checklist.md](./references/golden-native-shell-checklist.md) & [references/ota-protocol-and-signing.md](./references/ota-protocol-and-signing.md). Dự phòng sẵn quyền phần cứng 12–24 tháng, dọn placeholder `Info.plist`, tạo X.509 certificate bằng `scripts/publish-ota.mjs --keygen`, cài `expo-updates` trỏ về `/api/v1/ota/manifest` kèm Public Certificate & unified `runtimeVersion` (`"native-1"`). Dựng backend OTA route từ [templates/ota-server-route.ts](./templates/ota-server-route.ts).
    *Điều kiện xong:* Endpoint `/api/v1/ota/manifest` trả manifest hợp lệ có chữ ký `expo-signature`, OTA audit **PASS**.
 4. **Tích hợp SDUI Engine & Chuẩn Modal 4 Lớp:**
-   Đọc [references/sdui-universal-schema.md](./references/sdui-universal-schema.md) & [references/schema-specification.json](./references/schema-specification.json). Dựng `SDUIRenderer` ([templates/SDUIRenderer.tsx](./templates/SDUIRenderer.tsx)), `UnifiedModalHeader` ([templates/UnifiedModalHeader.tsx](./templates/UnifiedModalHeader.tsx)), Action Dispatcher (whitelist), và Offline Cache cho các màn hình/form biến thiên thường xuyên.
+   Đọc [references/sdui-universal-schema.md](./references/sdui-universal-schema.md) & [references/schema-specification.json](./references/schema-specification.json). Dựng `SDUIRenderer` ([templates/SDUIRenderer.tsx](./templates/SDUIRenderer.tsx)), Offline Cache ([templates/SDUICacheManager.ts](./templates/SDUICacheManager.ts)), Action Dispatcher whitelist ([templates/SDUIActionDispatcher.ts](./templates/SDUIActionDispatcher.ts)), và Modal/Header 4 lớp thoát hiểm ([templates/UnifiedModalHeader.tsx](./templates/UnifiedModalHeader.tsx)) cho các màn hình/form biến thiên thường xuyên.
    *Điều kiện xong:* Ngắt mạng mở lại app lên giao diện từ cache < 1s; sai schema tự fallback không crash.
 5. **Nghiệm thu Vật lý & Nộp Bản Golden Native Shell:**
-   Chạy `npm run typecheck`, test backend, chạy `node <path_to_skill>/scripts/audit-facebook-like.mjs --strict`, test 120 FPS trên Simulator/thiết bị thật. Sau khi kiểm chứng xong, nộp **Golden Native Shell** lần duy nhất qua `build-deploy-xskill` hoặc `mobile-store-deploy`.
+   Chạy `npm run typecheck`, test backend, chạy `node <path_to_skill>/scripts/audit-facebook-like.mjs --strict`, test 120 FPS trên Simulator/thiết bị thật. Sau khi kiểm chứng xong, nộp **Golden Native Shell** lần duy nhất qua `build-deploy-xskill` hoặc `mobile-store-deploy`. Những lần sửa JS/React về sau chỉ cần chạy `node <path_to_skill>/scripts/publish-ota.mjs --publish ...` đẩy lên VPS!
 
 ---
 
@@ -91,10 +91,11 @@ Cài ngay [templates/FACEBOOK_LIKE_PROJECT_RULE.md](./templates/FACEBOOK_LIKE_PR
 
 | Cần làm gì? | Đọc / Chạy file tương ứng |
 | :--- | :--- |
-| Dựng hoặc kiểm tra Self-Hosted OTA & Ký số RSA | [references/ota-protocol-and-signing.md](./references/ota-protocol-and-signing.md) |
+| Dựng hoặc kiểm tra Self-Hosted OTA & Ký số RSA | [references/ota-protocol-and-signing.md](./references/ota-protocol-and-signing.md) · [scripts/publish-ota.mjs](./scripts/publish-ota.mjs) |
 | Thiết kế JSON SDUI, Component Registry, Theme Tokens | [references/sdui-universal-schema.md](./references/sdui-universal-schema.md) · [schema-specification.json](./references/schema-specification.json) |
 | Kiểm tra chống dịch ngược APK/IPA/Hermes & Proxy API | [references/security-zero-secret-audit.md](./references/security-zero-secret-audit.md) |
 | Chốt danh sách quyền/SDK trước khi nộp Store 1 lần | [references/golden-native-shell-checklist.md](./references/golden-native-shell-checklist.md) |
 | Cài Rule & Hook khóa cứng cho mọi phiên AI sau này | [templates/FACEBOOK_LIKE_PROJECT_RULE.md](./templates/FACEBOOK_LIKE_PROJECT_RULE.md) · [templates/native-freeze-hook.json](./templates/native-freeze-hook.json) |
-| Code mẫu Client SDUI, Modal 4 lớp & Server Route | [templates/SDUIRenderer.tsx](./templates/SDUIRenderer.tsx) · [templates/UnifiedModalHeader.tsx](./templates/UnifiedModalHeader.tsx) · [templates/ota-server-route.ts](./templates/ota-server-route.ts) |
+| Code mẫu SDUI, Cache, Dispatcher, Modal 4 lớp & Server Route | [templates/SDUIRenderer.tsx](./templates/SDUIRenderer.tsx) · [templates/SDUICacheManager.ts](./templates/SDUICacheManager.ts) · [templates/SDUIActionDispatcher.ts](./templates/SDUIActionDispatcher.ts) · [templates/UnifiedModalHeader.tsx](./templates/UnifiedModalHeader.tsx) · [templates/ota-server-route.ts](./templates/ota-server-route.ts) |
 | Tự động kiểm toán Native Drift, OTA & Bảo mật | `node <skill_dir>/scripts/audit-facebook-like.mjs [project_dir]` |
+| Sinh khóa X.509 & Đóng gói/Ký số bản JS OTA đẩy VPS | `node <skill_dir>/scripts/publish-ota.mjs --help` |

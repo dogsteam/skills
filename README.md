@@ -13,7 +13,7 @@ skills/
 │
 ├── rules/
 │   ├── ANTI_HALLUCINATION_AND_TRUTHFUL_VERIFICATION_RULE.md  ★ Quy tắc cấm báo cáo láo & đối soát bằng chứng
-│   └── FACEBOOK_LIKE_ARCHITECTURE_RULE.md (facebook-like.md) ★ Quy tắc kiến trúc 2 tầng Native Shell & Dynamic OTA
+│   └── FACEBOOK_LIKE_ARCHITECTURE_RULE.md (facebook-like.md) ★ Quy tắc kiến trúc 3 tầng (Server Brain + Signed JS OTA + SDUI)
 │
 ├── anti-hallucination-audit/ (anti-hallucination-audit-xskill)★ SKILL 1: Thẩm định sự thật & chống báo cáo láo
 │   ├── SKILL.md
@@ -38,9 +38,10 @@ skills/
 ├── facebook-like-xskill/ (facebook-like)                     ★ SKILL 4: Kiến trúc Facebook-like 3 Tầng (Server Brain + Signed JS OTA + SDUI)
 │   ├── SKILL.md                                              Policy Khóa Native Shell, 0-Secret Client, Modal 4 lớp & Quy trình 5 bước
 │   ├── references/                                           Spec Expo Updates RSA, SDUI v2, Anti-Decompile Audit, Golden Shell Checklist
-│   ├── templates/                                            Rule mẫu AGENTS.md, Hook chặn đụng Native, SDUIRenderer, UnifiedModalHeader, OTA Route
+│   ├── templates/                                            Rule mẫu AGENTS.md, Hook Guard, SDUIRenderer, Cache, Dispatcher, Modal 4 lớp, OTA Route
 │   └── scripts/
-│       └── audit-facebook-like.mjs                           Tool audit Native Drift, OTA Readiness, Zero-Secret Leak & PreToolUse Hook guard
+│       ├── audit-facebook-like.mjs                           Tool audit Native Drift, OTA Readiness, Zero-Secret Leak & PreToolUse Hook guard
+│       └── publish-ota.mjs                                   Sinh chứng chỉ X.509 CodeSigning & đóng gói/ký số JS OTA bundle đẩy VPS
 │
 ├── build-deploy-xskill/                                      ★ MASTER SKILL: Đệ chuyên trách Build & Deploy đa nền tảng
 │   └── SKILL.md                                              Điều hành tổng lực EXE, APK, AAB, IPA, VPS, Stores, Simulator
