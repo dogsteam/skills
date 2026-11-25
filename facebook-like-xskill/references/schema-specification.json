@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FacebookLikeSDUIBundle",
+  "description": "Tiêu chuẩn Dynamic Schema JSON cho kiến trúc Facebook-like (Độc quyền Trương Tổng)",
+  "type": "object",
+  "required": ["appId", "version", "themeTokens", "screens"],
+  "properties": {
+    "appId": {
+      "type": "string",
+      "description": "Mã định danh ứng dụng (VD: xechung, annhanh, shiptudo)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Phiên bản schema bundle (Semantic Versioning: 2.0.0)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "themeTokens": {
+      "type": "object",
+      "description": "Bộ Design Tokens giải quyết ranh giới màu sắc, chống fix cứng mã Hex",
+      "additionalProperties": { "type": "string" }
+    },
+    "screens": {
+      "type": "object",
+      "description": "Danh sách các màn hình và modal được điều khiển từ xa",
+      "additionalProperties": {
+        "$ref": "#/definitions/ComponentNode"
+      }
+    }
+  },
+  "definitions": {
+    "ComponentNode": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "props": { "type": "object" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/ComponentNode" }
+        },
+        "action": {
+          "type": "object",
+          "properties": {
+            "type": { "enum": ["api_call", "navigate", "open_modal", "call_phone", "dismiss_modal"] },
+            "endpoint": { "type": "string" },
+            "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+            "params": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}
