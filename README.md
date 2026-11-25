@@ -35,14 +35,12 @@ skills/
 │       ├── google-play-rejection-checklist.md                Checklist 10 lỗi bị từ chối phổ biến trên Play Console
 │       └── apple-appstore-connect.md                         Fast-track nộp IPA trực tiếp lên App Store Connect
 │
-├── facebook-like-xskill/ (facebook-like)                     ★ SKILL 4: Chuyển đổi Kiến trúc Facebook-like (SDUI & OTA)
-│   ├── SKILL.md                                              Native Shell 120 FPS Reanimated, Instant Dynamic OTA, giấu 100% thuật toán
-│   ├── templates/
-│   │   ├── UnifiedModalHeader.tsx                            Component Header 4 lớp thoát hiểm an toàn (Single Source of Truth)
-│   │   ├── SDUIRenderer.tsx                                  Bộ thông dịch Dynamic Schema JSON thành Native Views
-│   │   └── ota-server-route.ts                               API Express /check và /bundle phân phối OTA nén brotli/gzip
-│   └── references/
-│       └── schema-specification.json                         Tiêu chuẩn JSON Schema phân cấp cho toàn bộ Screens & Modals
+├── facebook-like-xskill/ (facebook-like)                     ★ SKILL 4: Kiến trúc Facebook-like 3 Tầng (Server Brain + Signed JS OTA + SDUI)
+│   ├── SKILL.md                                              Policy Khóa Native Shell, 0-Secret Client, Modal 4 lớp & Quy trình 5 bước
+│   ├── references/                                           Spec Expo Updates RSA, SDUI v2, Anti-Decompile Audit, Golden Shell Checklist
+│   ├── templates/                                            Rule mẫu AGENTS.md, Hook chặn đụng Native, SDUIRenderer, UnifiedModalHeader, OTA Route
+│   └── scripts/
+│       └── audit-facebook-like.mjs                           Tool audit Native Drift, OTA Readiness, Zero-Secret Leak & PreToolUse Hook guard
 │
 ├── build-deploy-xskill/                                      ★ MASTER SKILL: Đệ chuyên trách Build & Deploy đa nền tảng
 │   └── SKILL.md                                              Điều hành tổng lực EXE, APK, AAB, IPA, VPS, Stores, Simulator

@@ -1,56 +1,114 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "FacebookLikeSDUIBundle",
-  "description": "Tiêu chuẩn Dynamic Schema JSON cho kiến trúc Facebook-like (Độc quyền Trương Tổng)",
+  "title": "FacebookLikeSDUIBundleV2",
+  "description": "Tiêu chuẩn Dynamic Schema JSON v2 phi-dự-án cho kiến trúc Facebook-like (Zero-Store-Update)",
   "type": "object",
-  "required": ["appId", "version", "themeTokens", "screens"],
+  "required": ["appId", "schemaVersion", "version", "themeTokens", "screens"],
   "properties": {
     "appId": {
       "type": "string",
-      "description": "Mã định danh ứng dụng (VD: xechung, annhanh, shiptudo)"
+      "description": "Mã định danh ứng dụng (VD: shiptudo, xechung, annhanh)"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Phiên bản tương thích SDUI Engine trên client"
     },
     "version": {
       "type": "string",
-      "description": "Phiên bản schema bundle (Semantic Versioning: 2.0.0)"
+      "description": "Phiên bản nội dung schema (Semantic Versioning: 2.1.0)"
+    },
+    "sha256": {
+      "type": "string",
+      "description": "Checksum toàn vẹn của nội dung bundle"
     },
     "updatedAt": {
       "type": "string",
       "format": "date-time"
     },
+    "featureFlags": {
+      "type": "object",
+      "description": "Cờ bật/tắt tính năng từ xa theo server",
+      "additionalProperties": {
+        "type": ["boolean", "string", "number"]
+      }
+    },
     "themeTokens": {
       "type": "object",
-      "description": "Bộ Design Tokens giải quyết ranh giới màu sắc, chống fix cứng mã Hex",
+      "description": "Design Tokens động chống fix cứng mã màu Hex",
       "additionalProperties": { "type": "string" }
     },
     "screens": {
       "type": "object",
-      "description": "Danh sách các màn hình và modal được điều khiển từ xa",
+      "description": "Bản đồ các màn hình và modal được điều khiển từ xa",
       "additionalProperties": {
         "$ref": "#/definitions/ComponentNode"
       }
     }
   },
   "definitions": {
+    "VisibilityCondition": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "equals": { "type": ["string", "number", "boolean"] },
+        "notEquals": { "type": ["string", "number", "boolean"] },
+        "in": {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean"] }
+        },
+        "truthy": { "type": "boolean" },
+        "falsy": { "type": "boolean" },
+        "gt": { "type": "number" },
+        "lt": { "type": "number" }
+      }
+    },
+    "SDUIAction": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "api_call",
+            "navigate",
+            "open_modal",
+            "dismiss_modal",
+            "open_sms",
+            "call_phone",
+            "open_url",
+            "copy_text",
+            "set_field",
+            "show_toast",
+            "confirm_slide"
+          ]
+        },
+        "endpoint": { "type": "string" },
+        "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+        "target": { "type": "string" },
+        "field": { "type": "string" },
+        "value": {},
+        "params": { "type": "object" },
+        "onSuccess": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/SDUIAction" }
+        }
+      }
+    },
     "ComponentNode": {
       "type": "object",
       "required": ["id", "type"],
       "properties": {
         "id": { "type": "string" },
         "type": { "type": "string" },
+        "field": { "type": "string" },
+        "visibleWhen": { "$ref": "#/definitions/VisibilityCondition" },
         "props": { "type": "object" },
         "children": {
           "type": "array",
           "items": { "$ref": "#/definitions/ComponentNode" }
         },
-        "action": {
-          "type": "object",
-          "properties": {
-            "type": { "enum": ["api_call", "navigate", "open_modal", "call_phone", "dismiss_modal"] },
-            "endpoint": { "type": "string" },
-            "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
-            "params": { "type": "object" }
-          }
-        }
+        "action": { "$ref": "#/definitions/SDUIAction" }
       }
     }
   }

@@ -1,0 +1,17 @@
+{
+  "facebook-like-native-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "write_file|edit_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/scripts/audit-facebook-like.mjs --hook-stdin",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

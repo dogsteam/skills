@@ -1,103 +1,40 @@
-# ⚡ QUY CHUẨN KIẾN TRÚC FACEBOOK-LIKE: SERVER-DRIVEN UI & DYNAMIC OTA CONTAINER
+# ⚡ QUY CHUẨN KIẾN TRÚC FACEBOOK-LIKE: ZERO-STORE-UPDATE & ZERO-SECRET POLICY
 
-> **CHỈ THỊ CỐT LÕI TỪ TRƯƠNG TỔNG (CTO):**  
-> *"Ứng dụng Mobile phải vận hành giống như Facebook: Native Shell nộp Store 1 lần duy nhất để giữ chỗ và cấp quyền thiết bị. Mọi thay đổi về giao diện, thuật toán matching, phân luồng cuốc và khuyến mãi đều phải được Server cập nhật ngầm tức thì (Instant Dynamic OTA) trong vài giây mà không cần người dùng cập nhật qua App Store hay Google Play, tuyệt đối không bị lộ API và bí mật nghiệp vụ khi bị decompile APK/IPA! Không bao giờ làm chắp vá, mọi modal phải có đủ 4 lớp thoát hiểm và phân định ranh giới kỹ thuật trung thực, cấm báo cáo láo!"*
+> **Mục tiêu:** Mọi thay đổi tính năng, UI, quy trình và sửa lỗi về sau **chỉ cập nhật Server (`Backend` / `SDUI` / `Signed JS OTA`)**, tuyệt đối không làm phát sinh bản nộp lại App Store / Google Play và không để lộ bí mật khi dịch ngược APK/IPA.
 
----
+## 1. CHỐT CHẶN NATIVE SHELL FREEZE (HỎI TRƯỚC KHI CHẠM BINARY)
 
-## 🏛️ ĐIỀU 1: KIẾN TRÚC 2 TẦNG BẮT BUỘC (TWO-TIER CONTAINER ARCHITECTURE)
+Sau khi bản **Golden Native Shell** đã phát hành trên Store, áp dụng kỷ luật **khóa cứng vỏ Native**:
 
-Mọi ứng dụng Mobile chuyển đổi sang chuẩn Facebook-like bắt buộc phải chia làm 2 tầng tách biệt hoàn toàn:
+1. **Thứ tự giải quyết mọi tính năng mới (từ ưu tiên cao nhất đến thấp nhất):**
+   - **Làn 1 (0 giây — Không build client):** Xử lý tại Backend API, Webhook đối tác, Pricing/Settlement Engine, Proxy, hoặc trả Flag/Config mới.
+   - **Làn 2 (< 1 giây — Không build JS bundle):** Cập nhật cấu trúc Form, Banner, Thẻ, Nút bấm, Luồng điều hướng thông qua **SDUI JSON Schema** từ Admin/Backend.
+   - **Làn 3 (Vài giây — Không qua Store):** Thay đổi/thêm mới component React, TypeScript state, màn hình mới và phát hành qua **Self-Hosted Signed JS OTA (`expo-updates`)**.
+2. **VÙNG CẤM TỰ Ý SỬA (Bắt buộc DỪNG & BÁO ĐỎ CTO nếu đụng tới):**
+   - Cài bất kỳ package nào có liên kết native `ios/` hoặc `android/` (không phải pure JavaScript).
+   - Chỉnh sửa `ios/**`, `android/**`, `Info.plist`, `AndroidManifest.xml`, Podfile, Gradle, hoặc `plugins` / `runtimeVersion` trong `app.config.*`.
+   - Khi gặp yêu cầu đòi hỏi quyền OS hoặc SDK native mới chưa có sẵn trong vỏ Native: **Dừng lại ngay**, giải thích rõ *tại sao Backend/JS OTA/WebView không làm được*, và chỉ sửa sau khi CTO xác nhận *"Chấp nhận build & nộp lại Store"*.
+3. **Cấm hứa suông khi được hỏi "Up server là xong đúng không?":**
+   - Phải kiểm tra thực tế mã nguồn: nếu tính năng phụ thuộc thay đổi mã máy khách chưa từng có trong binary trên Store -> nói thẳng là cần build/OTA tương ứng, tuyệt đối không trả lời mơ hồ.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│  TẦNG 1: NATIVE SHELL (CONTAINER DUY NHẤT NỘP STORE 1 LẦN)             │
-│  - Reanimated 120 FPS Gesture (SlideToConfirm vuốt nhận cuốc)          │
-│  - Native Hardware Capabilities: GPS Location, Telemetry, Haptics      │
-│  - OS Speech TTS (Giọng nói cảnh báo lái xe tiếng Việt)                │
-│  - PanResponder: Cử chỉ vuốt kéo đàn hồi lò xo vật lý đóng modal       │
-│  - Native Camera & Photo Picker                                        │
-│  - SDUIRenderer: Trình thông dịch & kết xuất giao diện động            │
-└────────────────────────────────────┬───────────────────────────────────┘
-                                     │ Tải Dynamic Bundle / Schema JSON
-                                     ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│  TẦNG 2: SERVER-DRIVEN UI & DYNAMIC OTA RUNTIME (CẬP NHẬT NGẦM TỨC THÌ)│
-│  - Màn hình đặt xe, form chọn điểm đến, bảng giá, loại cuốc           │
-│  - Sàn cuốc tài xế, quy tắc ẩn SĐT 098****321, thẻ thống kê doanh thu │
-│  - Ví tài xế, ngân hàng VietQR Napas, banner khuyến mãi, voucher      │
-│  - Action Bindings: Ánh xạ sự kiện bấm nút sang API backend            │
-│  - Theme Tokens: Tự thích ứng Light/Dark mode không dùng mã Hex cứng   │
-└────────────────────────────────────────────────────────────────────────┘
-```
+## 2. ZERO-SECRET & CHỐNG DỊCH NGƯỢC TUYỆT ĐỐI
 
-### 1. Tầng 1: Native Shell Container (Bất Biến & Nộp Store Duy Nhất 1 Lần)
-- Là khung Native biên dịch tĩnh (Xcode Archive -> IPA, Gradle -> AAB/APK).
-- Chỉ chứa các module Native phụ thuộc sâu vào hệ điều hành mà JavaScript không thể tự tạo:
-  * `react-native-reanimated` & `react-native-gesture-handler`: Đảm bảo thanh trượt **SlideToConfirm** vuốt ngang nhận cuốc chạy mượt mà 60/120 FPS trên UI thread, không bị giật lag khi lái xe.
-  * `expo-speech` / Audio TTS: Giọng nói AI cảnh báo cuốc mới cho tài xế.
-  * Haptic Feedback: Rung phản hồi khi vuốt thành công.
-  * Map & Telemetry Native: Bản đồ và định vị GPS 2 đầu hành lang.
-  * `UnifiedModalHeader`: Component header modal chuẩn hóa 4 lớp an toàn duy nhất.
-  * `SDUIRenderer`: Trình thông dịch Schema JSON từ Server thành các Native Component tương ứng.
+1. **Không logic nhạy cảm trên Client (`src/`):** Cấm giữ công thức tính tiền/cước, % chiết khấu, thuật toán chấm điểm/matching, hay hardcode phí ở UI. Client chỉ gửi input và hiển thị kết quả tính toán từ Server.
+2. **Không lộ Key thứ 3 ở Client:** Cấm gửi raw `mapTilesKey`, key AI (OpenAI/Google), key hãng vận chuyển, hay secret webhook xuống App/WebView — mọi giao tiếp với bên thứ 3 phải đi qua **Backend Proxy**.
+3. **Masking tại Server:** Dữ liệu nhạy cảm (SĐT khách trước khi nhận đơn, doanh thu nội bộ) phải được Server che/ẩn trước khi trả JSON.
+4. **Cấm thực thi mã động thô:** Tuyệt đối cấm `eval()`, `new Function()`, hoặc tải script JS không qua chữ ký số RSA của `expo-updates`.
 
-### 2. Tầng 2: Server-Driven UI & Dynamic Presentation Runtime (Biến Thiên Ngầm)
-- Toàn bộ giao diện người dùng (Screens, Modals, Forms, Banners, Cards) được Server mô tả dưới dạng Schema JSON hoặc Dynamic Bundle.
-- Khi ứng dụng mở lên: Client âm thầm gọi `/api/v1/ota/check` để kiểm tra phiên bản mới nhất. Nếu có bản cập nhật, client tải bundle ngầm trong vài giây và áp dụng ngay lập tức mà người dùng không hề hay biết và không cần Store duyệt!
+## 3. CHUẨN OTA, OFFLINE CACHE & AN TOÀN UI
 
----
+1. **OTA Signed & Crash Rollback:** Gói JS OTA tự host phải có chữ ký RSA (`expo-signature`), đồng bộ `runtimeVersion`, và giữ Auto-Rollback khi lỗi boot.
+2. **SDUI An toàn:** Mọi màn SDUI phải có Cache local (mở app < 0.1s khi mất mạng) và bọc `ErrorBoundary` fallback về giao diện tĩnh an toàn.
+3. **Single Source of Truth & Theme Tokens:** Thành phần dùng chung (Header, Modal, Card) chỉ viết ở 1 component gốc; dùng Design Tokens (`theme.*`), cấm fix cứng màu hex lẻ tẻ.
+4. **4 Lớp Thoát Hiểm & Safe Area Modal:** Mọi Modal phải có đủ: (1) Nút `X` độ tương phản cao (`zIndex: 9999`), (2) Vuốt trượt đóng PanResponder, (3) Chạm backdrop đóng, (4) Phím Back Android + Safe Area Top Inset cho tai thỏ/Dynamic Island (`Math.max(insets.top, Platform.OS === 'ios' ? 52 : 28)`).
+5. **Cử chỉ Quan trọng:** Thao tác xác nhận quan trọng (nhận đơn, giao hàng...) dùng `SlideToConfirm` 120 FPS UI thread, không bật popup hỏi lại gây vướng tay.
 
-## 🔒 ĐIỀU 2: BẢO MẬT TUYỆT ĐỐI (ZERO REVERSE-ENGINEERING LEAKS)
+## 4. CỔNG KIỂM CHỨNG BẮT BUỘC TRƯỚC KHI BÁO XONG
 
-1. **Giấu 100% Thuật toán nhạy cảm trên Server:**
-   * Thuật toán định giá cuốc (15k/ghế, 40k/bao xe, 10k/gửi hàng).
-   * Thuật toán ghép khách, chia tuyến hành lang.
-   * Cơ chế bảo mật ẩn số điện thoại khách hàng (`098****321`) trên sàn cuốc tài xế.
-2. **Client chỉ đóng vai trò Presentation Runtime:**
-   * Phía Client chỉ nhận dữ liệu đã được xử lý an toàn từ Server.
-   * Hacker giải nén file APK (`apktool`) hoặc IPA (`class-dump`) sẽ **CHỈ THẤY NATIVE SHELL RỖNG**, tuyệt đối không tìm thấy bất kỳ secret key, token backend hay logic nghiệp vụ nào!
-
----
-
-## ⚡ ĐIỀU 3: BẢO TOÀN 100% TRẢI NGHIỆM NATIVE (60/120 FPS EXPERIENCE)
-
-1. **Tuyệt đối không dùng WebView thô thiển:**
-   * Server-Driven UI ở đây **KHÔNG PHẢI LÀ NHÚNG WEBVIEW TRÌNH DUYỆT**.
-   * Client sử dụng các Native Component thật (`View`, `Text`, `Pressable`, `Animated.View`) để hiển thị theo chỉ dẫn của JSON Schema từ Server.
-2. **Cử chỉ vuốt ngang SlideToConfirm phải Native:**
-   * Nút vuốt ngang nhận cuốc của tài xế bắt buộc chạy qua Reanimated Worklet trên UI Thread native để chống trượt tay khi đang lái xe trên cao tốc.
-
----
-
-## 🛡️ ĐIỀU 4: QUY CHUẨN 4 LỚP THOÁT HIỂM AN TOÀN TUYỆT ĐỐI (QUADRUPLE DISMISSAL SAFETY)
-
-Mọi Modal, Popup, Bottom Sheet trong ứng dụng **bắt buộc phải có đủ 4 cơ chế đóng đồng thời**, tuyệt đối cấm tạo ra bất kỳ màn hình nào bẫy kẹt người dùng:
-1. **Lớp 1 (Nút X trực quan):** Nút X nổi bật với tương phản cao (`zIndex: 9999`, `elevation: 20`, shadow, border), tự đảo màu theo nền, không bao giờ bị tàng hình.
-2. **Lớp 2 (Cử chỉ vuốt):** Kéo vuốt xuống 120 FPS (`PanResponder`) có lực đàn hồi lò xo (Spring Physics), vượt ngưỡng 80px là tự trượt xuống đóng.
-3. **Lớp 3 (Chạm ra ngoài):** Lớp phủ mờ có `backdropTouch` (`{ ...StyleSheet.absoluteFillObject }`), chạm vào nền mờ là đóng ngay.
-4. **Lớp 4 (Phím cứng Back):** Android `onRequestClose` kích hoạt đóng an toàn.
-
----
-
-## ⚖️ ĐIỀU 5: PHÂN ĐỊNH RANH GIỚI KỸ THUẬT TRUNG THỰC (TECHNICAL BOUNDARY AUDIT)
-
-Khi CTO hỏi: *"Fix xong up lên server cho anh là được đúng không?"*: **BẮT BUỘC** phân định ranh giới kỹ thuật trung thực, nghiêm cấm trả lời xuôi tai:
-* **Server SDUI OTA làm được ngay (2 giây):** Đổi Schema JSON, ẩn/hiện thành phần (Banner, thẻ xe, bảng giá), vị trí nút X, text hotline, màu sắc Design Tokens.
-* **Native Shell Runtime bắt buộc phải build Store (APK/IPA):** Cử chỉ Native (`PanResponder` kéo vuốt, Reanimated Worklet mới), quyền phần cứng OS, module GPS/TTS native, sự kiện phím cứng Back.
-
----
-
-## 🎨 ĐIỀU 6: QUY TẮC THEME TOKENS & CẤM FIX CỨNG MÃ MÀU (ZERO HARDCODED HEX)
-
-* Nghiêm cấm fix cứng mã màu hex như `#FFFFFF` hay `#000000` vào background hoặc icon.
-* Bắt buộc dùng Design Tokens (`theme.surfaceSolid`, `theme.surfaceSubtle`, `theme.textPrimary`, `theme.border`...).
-
----
-
-## 🛠️ ĐIỀU 7: QUY TRÌNH CHUYỂN ĐỔI AN TOÀN 5 GIAI ĐOẠN (MIGRATION PHASES)
-
-* **Giai đoạn 1 (Safety Snapshot):** Tạo commit Git an toàn sao lưu trạng thái hiện tại (`git commit -m "feat(backup): snapshot before Facebook-like migration"`).
-* **Giai đoạn 2 (Native Shell Decoupling):** Đóng gói các Native Module (Reanimated, Speech, Haptics, UnifiedModalHeader) thành các khối độc lập.
-* **Giai đoạn 3 (SDUI Engine Integration):** Bổ sung trình thông dịch `src/components/sdui/SDUIRenderer.tsx` và cơ chế Fallback Offline Cache.
-* **Giai đoạn 4 (Server Schema & OTA Endpoints):** Bổ sung endpoint backend `/api/v1/ota/check` và `/api/v1/ota/bundle` trên server Express.
-* **Giai đoạn 5 (Physical Verification):** Chạy `npm run typecheck`, kiểm thử trên iOS Simulator (`iPhone 18 Pro`), kiểm tra độ mượt 120 FPS của thanh vuốt nhận cuốc và xác thực file vật lý.
+Trước khi kết luận xong một thay đổi thuộc Backend / OTA / SDUI:
+- Chạy `npm run typecheck` (và `typecheck` của backend nếu có).
+- Chạy kiểm chứng không vi phạm Native Shell & Zero-Secret (`node .agents/scripts/audit-facebook-like.mjs --check-diff` hoặc script audit của `facebook-like-xskill`).
+- Xác nhận rõ trong báo cáo: thay đổi vừa rồi triển khai bằng **(Backend Only / SDUI / JS OTA)** và **KHÔNG cần nộp lại App Store / Google Play**.
